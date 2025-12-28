@@ -123,7 +123,7 @@ pipeline {
                                             .toUpperCase()
 
                         def serviceName = serviceKey.toLowerCase()
-
+ 			docker rm -f ${serviceName}
                         echo "Deploying ${serviceName} with image ${imageName}"
 
                         sh """
