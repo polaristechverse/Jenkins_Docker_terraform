@@ -123,8 +123,8 @@ pipeline {
                                             .toUpperCase()
 
                         def serviceName = serviceKey.toLowerCase()
- 			docker rm -f ${serviceName}
-                        echo "Deploying ${serviceName} with image ${imageName}"
+ 			sh 'docker rm -f ${serviceName}'
+		        echo "Deploying ${serviceName} with image ${imageName}"
 
                         sh """
 				 sed -i 's|^${serviceKey}_IMAGE=.*|${serviceKey}_IMAGE=${imageName}|' .env
