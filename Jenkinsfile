@@ -1,91 +1,138 @@
 pipeline {
     agent {
-        label 'Dev'
+	label 'Dev'
     }
     parameters {
-        choice(name: 'PACKER_ACTION',  
-        choices: ['NOAPPLY','APPLY'], 
-        description: 'Select packer action')
-        choice(name: 'TERRAFORM_ACTION',  
-        choices: ['PLAN','APPLY','DESTROY'], 
-        description: 'Select packer action')
+        booleanParam(
+            name: 'FORCE_DEPLOY',
+            defaultValue: false,
+            description: 'Force deployment even if no service changes detected'
+        )
     }
-   
-       
-stages {
-    stage('scm checkout'){
-        steps{
-            sh ' echo " accessing the github repo" '
-            checkout scm
-        }
+
+    environment {
+        NO_CHANGES = "false"
     }
-    stage('packer terraform checking'){
-        steps{
-            sh 'packer version'
-            sh 'terraform version'
-        }
-    }
-    stage('packer_validating_build'){
-         when {
-                expression { params.PACKER_ACTION == 'APPLY' }
-            }
-        steps{
-            sh 'packer plugins install github.com/hashicorp/amazon'
-            sh 'packer validate --var-file packer-vars.json packer.json'
-            sh 'packer build --var-file packer-vars.json packer.json'
-            
-        }
-    }
-    stage('AmiID'){
-        steps{
-            sh'echo "fetching ami id"'
-            script {
-                def amiID = sh(
-                    script: '''cat manifest.json | grep artifact_id |tr -d '",'| cut -d ':' -f3''',
-                    returnStdout: true
-                    ).trim()
-                    echo "AMI ID created:${amiID}"
-                    env.AMI_ID = amiID
+
+    stages {
+        stage('Checkout') {
+            steps {
+                echo "Checking out source code"
+                checkout scm
             }
         }
+        stage('Detect Changes') {
+            steps {
+                echo "Detecting changed services"
+
+                sh '''
+                  chmod +x detect-changes.sh
+                  ./detect-changes.sh
+                '''
+
+                script {
+                    if (!fileExists('changed-services.txt') ||
+                        readFile('changed-services.txt').trim() == "") {
+
+                        if (params.FORCE_DEPLOY) {
+                            echo "No code changes, but FORCE_DEPLOY enabled"
+                            env.NO_CHANGES = "false"
+                        } else {
+                            echo "No services changed"
+                            env.NO_CHANGES = "true"
+                            currentBuild.result = 'SUCCESS'
+                        }
+
+                    } else {
+                        env.NO_CHANGES = "false"
+                    }
+                }
+            }
+        }
+        stage('Build Changed Services') {
+            when {
+                expression {
+                    env.NO_CHANGES != "true" && !params.FORCE_DEPLOY
+                }
+            }
+            steps {
+                script {
+                    def changes = readFile('changed-services.txt').trim()
+
+                    if (changes == "") {
+                        echo "Nothing to build"
+                        return
+                    }
+
+                    changes.split('\n').each { line ->
+                        def parts = line.trim().split(/\s+/)
+
+                        if (parts.length < 2) {
+                            echo "Skipping invalid build entry: '${line}'"
+                            return
+                        }
+
+                        def serviceDir = parts[0]
+                        def imageName  = parts[1]
+
+                        echo "🛠 Building ${serviceDir} → ${imageName}"
+
+                        dir(serviceDir) {
+                            if (fileExists('pom.xml')) {
+                                sh 'mvn clean package -DskipTests'
+                            }
+                            sh "docker build -t ${imageName} ."
+                        }
+                    }
+                }
+            }
+        }
+        stage('Deploy') {
+            when {
+                expression { env.NO_CHANGES != "true" }
+            }
+            steps {
+                script {
+                    if (params.FORCE_DEPLOY) {
+                        echo "♻ FORCE_DEPLOY: restarting ALL services"
+                        sh '''
+                          docker compose down
+                          docker compose up -d
+                        '''
+                        return
+                    }
+                    def changes = readFile('changed-services.txt').trim()
+
+                    if (changes == "") {
+                        echo "Nothing to deploy"
+                        return
+                    }
+
+                    changes.split('\n').each { line ->
+                        def parts = line.trim().split(/\s+/)
+
+                        if (parts.length < 2) {
+                            echo "Skipping invalid deploy entry: '${line}'"
+                            return
+                        }
+
+                        def serviceDir = parts[0]
+                        def imageName  = parts[1]
+                        def serviceKey = serviceDir
+                                            .replace('-service','')
+                                            .toUpperCase()
+
+                        def serviceName = serviceKey.toLowerCase()
+
+                        echo "Deploying ${serviceName} with image ${imageName}"
+
+                        sh """
+				 sed -i 's|^${serviceKey}_IMAGE=.*|${serviceKey}_IMAGE=${imageName}|' .env
+                  		docker compose up -d --no-deps --force-recreate ${serviceName}
+                        """
+                    }
+                }
+            }
+        }
     }
-    stage('Terraform_Plan'){
-         when {
-                expression { params.TERRAFORM_ACTION == 'PLAN' }
-            }
-            steps{
-                sh """
-                sed -i 's|^ami *=.*|ami = "${env.AMI_ID}"|' terraform.tfvars
-                """
-                sh 'terraform init'
-                sh 'terraform validate'
-                sh 'terraform plan'
-            }
-    }
-    stage('Terrafor_Apply'){
-         when {
-                expression { params.TERRAFORM_ACTION == 'APPLY' }
-            }
-            steps{
-                sh """
-                sed -i 's|^ami *=.*|ami = "${env.AMI_ID}"|' terraform.tfvars
-                """
-                sh 'terraform init'
-                sh 'terraform validate'
-                sh 'terraform apply --auto-approve'
-            }
-    }
-        stage('Terrafor_Destory'){
-         when {
-                expression { params.TERRAFORM_ACTION == 'DESTROY' }
-            }
-            steps{
-                sh """
-                sed -i 's|^ami *=.*|ami = "${env.AMI_ID}"|' terraform.tfvars
-                """
-                sh 'terraform init'
-                sh 'terraform destroy --auto-approve'
-            }
-    }
-}
 }
