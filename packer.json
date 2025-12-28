@@ -30,7 +30,7 @@
             "inline": [
                 "sudo apt update -y",
                 "sudo apt install openjdk-21-jdk -y",
-                "sudo apt maven wget -y",
+                "sudo apt install maven wget -y",
                 "curl https://get.docker.com | bash",
                 "sudo usermod -aG docker ubuntu",
                 "sudo usermod -aG root ubuntu"
