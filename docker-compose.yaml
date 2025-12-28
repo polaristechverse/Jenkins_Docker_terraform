@@ -1,0 +1,44 @@
+networks:
+  ecom-net:
+    driver: bridge
+services:
+  frontend:
+    build: 
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: frontend
+    ports:
+      - "80:80"
+    networks:
+      - ecom-net
+    restart: unless-stopped
+  product:
+    build: 
+      context: ./product-service
+      dockerfile: Dockerfile
+    container_name: product
+    expose:
+      - "8081"
+    networks:
+      - ecom-net
+    restart: unless-stopped
+  inventory:
+    build: 
+      context: ./inventory-service
+      dockerfile: Dockerfile
+    container_name: inventory
+    expose:
+      - "8082"
+    networks:
+      - ecom-net
+    restart: unless-stopped
+  payment:
+    build: 
+      context: ./payment-service
+      dockerfile: Dockerfile
+    container_name: payment
+    expose:
+      - "8082"
+    networks:
+      - ecom-net
+    restart: unless-stopped

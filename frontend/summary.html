@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Order Summary</title>
+
+<style>
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: #f4f6f8;
+}
+
+header {
+  background: #232f3e;
+  color: white;
+  padding: 18px 40px;
+  font-size: 22px;
+}
+
+.container {
+  max-width: 600px;
+  margin: 40px auto;
+  background: white;
+  padding: 30px;
+  border-radius: 8px;
+  box-shadow: 0 0 20px rgba(0,0,0,0.1);
+}
+
+h2 {
+  margin-top: 0;
+}
+
+ul {
+  list-style: none;
+  padding: 0;
+}
+
+li {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid #ddd;
+}
+
+.total {
+  font-size: 20px;
+  font-weight: bold;
+  margin-top: 20px;
+  text-align: right;
+}
+
+button {
+  background: #ff9900;
+  border: none;
+  padding: 12px 20px;
+  font-size: 16px;
+  cursor: pointer;
+  margin-top: 20px;
+  width: 100%;
+}
+
+button:hover {
+  background: #ff7700;
+}
+</style>
+</head>
+
+<body>
+
+<header>DevOps E-Commerce Store</header>
+
+<div class="container">
+  <h2>Order Summary</h2>
+
+  <ul id="orderItems"></ul>
+
+  <div class="total">
+    Total: Rs <span id="totalAmount">0</span>
+  </div>
+
+  <button onclick="confirmOrder()">Confirm Order</button>
+</div>
+
+<script>
+/* Load cart data from browser storage */
+const cart = JSON.parse(localStorage.getItem("cart")) || [];
+const total = localStorage.getItem("total") || 0;
+
+const list = document.getElementById("orderItems");
+const totalSpan = document.getElementById("totalAmount");
+
+/* Display products */
+cart.forEach(product => {
+  const li = document.createElement("li");
+  li.innerHTML = `
+    <span>${product.name}</span>
+    <span>Rs ${product.price}</span>
+  `;
+  list.appendChild(li);
+});
+
+/* Display total */
+totalSpan.innerText = total;
+
+/* Confirm order */
+function confirmOrder() {
+  fetch("/api/payment", { method: "POST" })
+    .then(() => {
+      /* Clear cart after successful payment */
+      localStorage.removeItem("cart");
+      localStorage.removeItem("total");
+
+      /* Redirect to success page */
+      window.location.href = "success.html";
+    });
+}
+</script>
+
+</body>
+</html>

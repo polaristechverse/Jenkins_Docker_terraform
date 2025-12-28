@@ -1,0 +1,46 @@
+{
+    "_comment": "Create a AWS AMI with Ubuntu",
+    "variables": {
+        "region": "",
+        "source_ami": "",
+        "instance_type": "",
+        "vpc_id": "",
+        "subnet_id": ""
+    },
+    "_comment1": "packer build -var \"aws_secret_key=foo\" packer.json",
+    "_comment2": "packer build -var-file packer-vars.json packer.json",
+    "builders": [
+        {
+            "type": "amazon-ebs",
+            "region": "{{user `region`}}",
+            "source_ami": "{{user `source_ami`}}",
+            "instance_type": "{{user `instance_type`}}",
+            "ssh_username": "ubuntu",
+            "ami_name": "Autotfimage-{{isotime | clean_resource_name}}",
+            "vpc_id": "{{user `vpc_id`}}",
+            "subnet_id": "{{user `subnet_id`}}",
+            "tags": {
+                "Name": "Autotfimage-{{isotime | clean_resource_name}}"
+            }
+        }
+    ],
+    "provisioners": [
+        {
+            "type": "shell",
+            "inline": [
+                "sudo apt update -y",
+                "sudo apt install openjdk-21-jdk -y",
+                "sudo apt maven wget -y",
+                "curl https://get.docker.com | bash",
+                "sudo usermod -aG docker ubuntu",
+                "sudo usermod -aG root ubuntu"
+            ]
+        }
+    ],
+    "post-processors": [
+        {
+            "type": "manifest",
+            "output": "manifest.json"
+        }
+    ]
+}
